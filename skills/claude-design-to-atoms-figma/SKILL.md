@@ -148,6 +148,9 @@ Read `references/token-mapping.md` before interpreting the ledger — it covers 
 
 ### Phase 5 — Extract flows
 
+**Prototype scaffolding is not product design.** A Claude design often ships with authoring chrome — a view switcher, "Screen 1 / Screen 2" buttons, a reset-demo control. `discover_states.py` flags these (`prototypeChrome` on each candidate, plus `prototype_chrome_regions` with geometry). Clicking them is often how you reach the other views, so the views themselves are still real screens (tagged `via: "prototype-nav"`), but **the switcher must never be drawn into an imported frame** — exclude those regions when building.
+
+
 ```bash
 python3 "$SKILL"/scripts/extract_flows.py "$RUN" --out "$RUN/flows.json" --markdown "$RUN/FLOWS.md"
 ```
@@ -168,6 +171,7 @@ Load `figma-use` and `figma-generate-design` now. Then:
    - **Auto-layout everywhere.** Every container is `figma.createAutoLayout()`; absolute x/y only positions the top-level screen frame. Push trailing actions right with a spacer frame set to `FILL`.
    - **Take geometry from `computed.json`, never by eye** — padding, gap, height, radius, font size/weight. Give controls a *fixed* measured height and let width hug.
    - **Borders and shadows.** Secondary buttons have a hairline *and* a soft shadow; tinted badges take a tinted border; tinted cards take a light (200/300) border, not the text colour; selected rows often use a 2px inset side edge.
+   - **Reuse library components before hand-building.** Search for `button`, `badge`, `tab`, `link`, `input`, `table cell`, `tooltip`. Instantiate, screenshot and inspect each one: components can be stale (missing font so the label will not render, fixed width, an outdated brand colour). Use what fits, hand-build the rest, and report which you rejected and why. When a component carries its label in a variant, statuses it does not ship cannot be expressed — report the gap instead of forcing a wrong variant.
    - **Every icon in the source must exist in the output.** Rebuilding an icon+label pair as bare text is the most common omission — audit region by region against the render (`scripts/extract_icons.py` counts them). If the library has no match, extract the SVG from the render and insert it with `figma.createNodeFromSvg()`.
    - **Icons are component instances, never emoji and never text glyphs.** Material Symbols: pick `style=outlined, weight=500` explicitly — the default variant is weight 100. **Minimum 16x16**, always. Colour only the vector children; painting the instance frame produces a solid block.
    - **Word gaps.** Figma trims trailing spaces in hugging text, so split colour segments run together. Trim segments and use `itemSpacing`, or use one text node with `setRangeFillStyleId`.

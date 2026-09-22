@@ -252,12 +252,30 @@ In one real tab bar this exposed three different baselines (327 active, 333 inac
 
 Do not blanket-apply one text style across a control group. Tabs, segmented controls and nav items have a *selected* treatment (semibold + primary text + visible underline) and an *unselected* one (regular + secondary text + hidden underline). Applying the strong style to all of them — easy to do in a bulk pass — makes every tab look active.
 
-## 13. Check font availability before trusting a text style
+## 13. Reuse design system components — but verify each one renders
+
+Component instances beat hand-built frames for dev handoff: they stay linked, they carry the real spec, and a developer recognises them. Search the project's library for every control you are about to build by hand (`button`, `badge`, `tab`, `link`, `input`, `table cell`, `tooltip`).
+
+**But a library can contain components that do not work.** Always instantiate one, screenshot it, and inspect before committing to it. Real failures found in one library:
+
+| Symptom | Cause | Action |
+|---|---|---|
+| Instance renders blank, though a TEXT child holds the right characters | the component's font is not installed locally | do not use it; hand-build and report the component as unusable |
+| Control is a fixed width (e.g. 94px) regardless of label | old component built without hugging | unusable for a variable-width control |
+| Brand colour inside the instance is the wrong green/blue | component predates the current brand token | override to the project's current brand token, or reject |
+
+Use what fits, hand-build the rest, and **tell the user which components you used and which you rejected and why** — a stale component is a design system finding worth surfacing.
+
+**Component label sets are closed.** When a component carries its label in a *variant* rather than a text property (a status badge with `Type=Passed|Failed|Queued|…`), only those exact statuses can be expressed. If the design needs a status the system does not ship — "Healed", say — do not force the nearest wrong variant. Keep it hand-built, match it to the system's tokens, and report the gap.
+
+**The project's current brand token wins over a component's baked-in colour.** When the team says "use X everywhere", apply it to instance overrides too, not just to the frames you build yourself.
+
+## 14. Check font availability before trusting a text style
 
 A design system can reference a font that is not installed locally (e.g. `SF Mono`). `listAvailableFontsAsync()` tells you. An imported text style still applies — the style carries the font reference — but any node you *create* must be given a loadable font before you set `characters`. Create text with a font you know is available, set the characters, then apply `textStyleId`.
 
 Also: verify the style names. SF Pro exposes `Regular / Medium / Semibold / Bold / Light`; Inter uses `Semi Bold` (with a space), not `SemiBold`.
 
-## 14. Don't default everything to body size
+## 15. Don't default everything to body size
 
 Dense product UIs run much smaller than marketing pages. One real screen's type census: **13px (5535 uses), 11px (1031), 12px (~1500)**. Buttons and badges were 12px/500, meta text 11px/400. Mapping all of it to a 13px body style makes every control look inflated. Map per measured size, and use the Semibold variants for control labels.
