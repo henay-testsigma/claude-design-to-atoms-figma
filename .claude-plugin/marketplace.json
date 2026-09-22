@@ -1,0 +1,14 @@
+{
+  "name": "henay-design-skills",
+  "owner": {
+    "name": "Henay Lakhwani"
+  },
+  "description": "Claude Code skills for design-system workflows.",
+  "plugins": [
+    {
+      "name": "claude-design-to-atoms-figma",
+      "source": "./",
+      "description": "Claude design -> Figma screens and flows, mapped onto your design system tokens."
+    }
+  ]
+}

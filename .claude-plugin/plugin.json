@@ -1,0 +1,10 @@
+{
+  "name": "claude-design-to-atoms-figma",
+  "description": "Port a Claude-generated design (zip/html/artifact) into Figma as screens and flows, remapping every color, type, radius and shadow value onto an existing Figma design system instead of raw hex values.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Henay Lakhwani"
+  },
+  "homepage": "https://github.com/henaylakhwani-design/claude-design-to-atoms-figma",
+  "keywords": ["figma", "design-system", "design-tokens", "design-to-figma", "skill"]
+}
