@@ -203,7 +203,20 @@ A state whose capture yields **no new text** is visually identical to the base �
 
 ### Phase 7 — Validate
 
-**Run `scripts/verify_screen.js` through `use_figma` on every screen, and fix everything it reports, BEFORE showing the user anything.** Set `ROOT_ID` to the screen frame. It returns a defect list plus `PASS` (true when there are no high-severity defects). A screen is not done until `PASS` is true.
+**Two gates must pass before a screen is shown to the user. Neither is optional.**
+
+**Gate 1 — completeness (text parity).** A screen can be perfectly tokenised and still be *underbuilt*: a grey placeholder where the source has a whole rebuilt region. A style audit cannot see this, and it is the single most embarrassing failure mode. Measure it:
+
+```bash
+python3 "$SKILL"/scripts/compare_to_capture.py "$RUN" --built built-text.json \
+  --map "13 Compare step — screens only=compare-runs" --capture capture2 --threshold 0.8
+```
+
+Dump each frame's text with a `use_figma` read, then diff it against the **corresponding** captured state. Every visible string in the source should appear in the frame. Below ~80% the screen is underbuilt — rebuild it, do not ship it.
+
+Map each frame to the state it represents, not to a superset: a "Screens only" mode legitimately omits the detail fields, so comparing it against the full capture reports a false shortfall.
+
+**Gate 2 — correctness.** Run `scripts/verify_screen.js` through `use_figma` on every screen, and fix everything it reports.** Set `ROOT_ID` to the screen frame. It returns a defect list plus `PASS` (true when there are no high-severity defects). A screen is not done until `PASS` is true.
 
 It checks, automatically, every class of defect that otherwise comes back as review feedback:
 

@@ -63,3 +63,21 @@ Design files have no connectors (that is FigJam). Options, cheapest first:
 4. New name → append to the right of the last frame in its row.
 5. Gone → rename to `[deprecated] <name>`, move to the bottom row. Deleting is the user's call, not yours.
 6. Keep the previous `mapping.json` so token decisions do not drift between imports.
+
+## Group screens into sections by page variant
+
+A flat grid of thirty frames is hard to navigate and hard to hand off. Put each feature area in its own Figma `SECTION`, with all of that area's states inside it:
+
+```
+Step result — Analysis     01, 06, 07, 08, 09, 10
+Step result — tabs         02, 03, 04, 05, 20–23, 27, 28
+Compare step               13, 18, 19, 29, 30
+Element details            11
+Affected instances         12, 24, 25, 26
+Run picker                 14, 15
+Agent                      16, 17
+```
+
+Sections are created with `figma.createSection()` and take frames via `appendChild`. Lay each section out internally (rows of ~5, 200px gutters), size it to its content, then stack the sections down the canvas with a wide gap so the boundaries read clearly.
+
+This also makes review tractable: a reviewer opens one section and sees every state of that page variant together, which is exactly how they will be asked about it.
