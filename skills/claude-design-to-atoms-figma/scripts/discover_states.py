@@ -181,11 +181,24 @@ def main():
         print("%d interactive elements found" % len(candidates))
 
         states, skipped = [], []
+        seen_sigs = {base_sig: "default"}
+
+        def apply(actions):
+            """Replay a state's actions on a freshly loaded page."""
+            for a in actions:
+                if "role" in a and "name" in a:
+                    page.get_by_role(a["role"], name=a["name"], exact=True) \
+                        .first.click(timeout=3000)
+                elif a.get("click"):
+                    page.click(a["click"], timeout=3000)
+                elif "wait" in a:
+                    page.wait_for_timeout(int(a["wait"]))
+            page.wait_for_timeout(args.settle)
+
         if args.probe:
             probeable = [c for c in candidates if not SKIP.match(c["label"])]
             print("probing %d of them (cap %d)…" %
                   (min(len(probeable), args.max_probes), args.max_probes))
-            seen_sigs = {base_sig: "default"}
             for c in probeable[:args.max_probes]:
                 try:
                     load()
@@ -219,6 +232,60 @@ def main():
                     "actions": [action, {"wait": args.settle}],
                 })
                 print("  + %-34s -> new view" % c["label"][:34])
+        # --- depth 2+: probe INSIDE each discovered state ----------------------
+        # A modal's own view pickers, toggles and tabs only exist once the modal
+        # is open. Single-level probing cannot see them, which silently drops
+        # whole branches of the flow.
+        if args.probe and args.depth > 1:
+            for parent in list(states):
+                if parent.get("depth", 1) >= args.depth:
+                    continue
+                try:
+                    load()
+                    apply(parent["actions"])
+                    parent_sig = hashlib.md5(page.evaluate(SIGNATURE).encode()).hexdigest()
+                    inner = page.evaluate(ENUMERATE)
+                except Exception as e:
+                    skipped.append({"label": parent["name"],
+                                    "why": "could not re-enter: " + str(e)[:80]})
+                    continue
+                outer = set(c["label"] for c in candidates)
+                fresh = [c for c in inner
+                         if c["label"] not in outer and not SKIP.match(c["label"])]
+                if fresh:
+                    print("  inside '%s': %d nested control(s)" % (parent["name"], len(fresh)))
+                for c in fresh[:args.max_probes]:
+                    action = ({"click": c["selector"]} if c["selector"]
+                              else {"role": c["role"], "name": c["label"]})
+                    try:
+                        load()
+                        apply(parent["actions"])
+                        if c["selector"]:
+                            page.click(c["selector"], timeout=3000)
+                        else:
+                            page.get_by_role(c["role"], name=c["label"], exact=True) \
+                                .first.click(timeout=3000)
+                        page.wait_for_timeout(args.settle)
+                        sig = hashlib.md5(page.evaluate(SIGNATURE).encode()).hexdigest()
+                    except Exception as e:
+                        skipped.append({"label": parent["name"] + " > " + c["label"],
+                                        "why": str(e).split("\n")[0][:100]})
+                        continue
+                    if sig == parent_sig or sig in seen_sigs:
+                        skipped.append({"label": parent["name"] + " > " + c["label"],
+                                        "why": "no new view"})
+                        continue
+                    seen_sigs[sig] = parent["name"] + " > " + c["label"]
+                    states.append({
+                        "screen": screen,
+                        "name": slug(parent["name"] + "-" + c["label"]),
+                        "label": c["label"], "role": c["role"],
+                        "parent": parent["name"], "depth": 2,
+                        "via": "prototype-nav" if c.get("prototypeChrome") else "product-ui",
+                        "actions": parent["actions"] + [action, {"wait": args.settle}],
+                    })
+                    print("    + %-38s -> nested view" % c["label"][:38])
+
         browser.close()
 
     proto_states = [s for s in states if s.get("via") == "prototype-nav"]

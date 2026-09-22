@@ -28,3 +28,18 @@
 ## Multi-viewport designs
 
 If the design is responsive and the user wants mobile too, capture a second viewport (`--viewport 390x844`) and treat each breakpoint as a **parallel row** of the same flow, named `<NN> <Screen> · Mobile`. Do not interleave breakpoints in one row — it makes the flow unreadable.
+
+## Nested states: probe more than one level
+
+The most damaging discovery failure is **silent**: probing only the top level finds a modal, but never the view pickers, mode toggles and tabs that exist *inside* it. Whole branches of the flow go missing and nothing reports an error.
+
+```bash
+python3 "$SKILL"/scripts/discover_states.py "$RUN" --out "$RUN/states.json" \
+  --probe --depth 2 --max-probes 22
+```
+
+At `--depth 2` the script re-enters each discovered state (replaying its action list on a fresh page), enumerates the controls that were not present at the top level, and probes those too. Nested states carry `parent` and `depth: 2`, and their `actions` array is the full path from the entry point.
+
+**Default to `--depth 2` whenever any state is a modal, drawer or overlay.** A compare dialog with its own "view" selector and a screens/details toggle produces three distinct screens, only one of which depth-1 discovery can see.
+
+Reconcile before you declare the import complete: list the discovered states, list the frames you built, and diff them. A state that exists in the capture but has no frame is a missing screen, not an acceptable omission.
