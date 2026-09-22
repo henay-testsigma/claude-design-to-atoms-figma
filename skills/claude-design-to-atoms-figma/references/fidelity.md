@@ -2,7 +2,26 @@
 
 Every rule here comes from a real import that got it wrong first. Work through this list before declaring a screen done.
 
-## 1. Never estimate geometry — read it from the capture
+## 1. Rebuild the whole viewport, including global chrome
+
+Before building any screen, list the **regions** of the captured page and tick each one off: global navigation rail or sidebar, top bar, toolbar, content panels, footer. It is easy to focus on the region that changes between states and silently omit a persistent one — a left nav rail present in every screenshot can be missed across an entire import, because nothing in the content you *are* building looks wrong.
+
+Find it mechanically rather than by eye. Anything hugging an edge of the capture is chrome:
+
+```python
+# global chrome lives at the edges: a narrow full-height column, or a full-width bar
+for e in els:
+    if e["x"] < 90 and e["h"] > 400:      # left rail
+        print("left chrome:", e["w"], "x", e["h"], e.get("backgroundColor"))
+```
+
+Build chrome once in the base screen so every clone inherits it. The layout is then `HORIZONTAL [ rail , VERTICAL [ top bar, toolbar, body ] ]`, with overlays kept as absolute children of the screen frame so they float above both.
+
+**Adding chrome late is expensive.** A 76px rail narrows the content area, and every row that previously fit will now overflow — in one import this produced an identical overflow on all 17 screens at once. If chrome must be added after the fact, re-run the overflow check immediately and refit, shrinking gaps and control widths in a loop until the row provably fits rather than guessing a value.
+
+A screen that is genuinely chrome-free (a full-page takeover view) is the exception — confirm it against the capture instead of assuming.
+
+## 2. Never estimate geometry — read it from the capture
 
 `capture_screens.py` records `padding`, `gap`, `w`/`h`, `borderRadius`, `borderWidth`, `borderColor` and `boxShadow` for every element. **Use them.** Eyeballing "looks like 12px padding, radius 8" is the single largest source of "it doesn't look like the design".
 
@@ -32,7 +51,7 @@ A real example of estimate vs. measured, from one screen:
 
 Set a **fixed height** on buttons/badges/chips (`layoutSizingVertical = "FIXED"` then `resize`) and let width hug the label. Hugging both axes makes every control a different height.
 
-## 2. Borders and shadows are almost always missed
+## 3. Borders and shadows are almost always missed
 
 Flat-looking output is usually missing 1px hairlines and very soft shadows. Check `borderWidth`, `borderColor`, `boxShadow` on every surface, and note these patterns:
 
@@ -69,7 +88,7 @@ Symptom to watch for: shadows that look fine on an isolated node screenshot but 
 
 A border's colour is a *token*, not the same token as the fill: a green card is `Primary/50` fill + `Primary/300` border + `Primary/600` text. Using one green for all three is the classic tell.
 
-## 3. Icons: real components, never glyphs or emoji
+## 4. Icons: real components, never glyphs or emoji
 
 **Never use emoji, and never fake an icon with a text glyph** (`✕`, `✎`, `▾`). Use the project's icon library.
 
@@ -121,11 +140,11 @@ Use the library first and this only for genuine gaps — an imported SVG is a de
 
 Icons are found with `search_design_system` by their Material name (`chevron_right`, `check_circle`, `cancel`, `edit`, `thumb_up`, `thumb_down`). **The server clamps a batched `queries` array to one query**, so issue several search calls in parallel instead of batching.
 
-## 4. Auto-layout everywhere — stacks, not coordinates
+## 5. Auto-layout everywhere — stacks, not coordinates
 
 Every container is `figma.createAutoLayout()`. Absolute `x`/`y` is only for placing a top-level screen frame on the canvas. A screen is a vertical stack of regions; each region is a horizontal or vertical stack; rows use a spacer frame with `layoutSizingHorizontal = "FILL"` to push trailing actions right.
 
-## 5. `resize()` resets sizing modes — order matters
+## 6. `resize()` resets sizing modes — order matters
 
 This silently breaks full-width layouts:
 
@@ -144,7 +163,7 @@ The symptom is a header whose actions bunch up next to the title instead of sitt
 
 The same ordering trap applies to any node you both resize and set to `HUG`/`FILL`. Append to the auto-layout parent, resize, *then* set the sizing mode.
 
-## 6. Figma trims trailing spaces in hugging text
+## 7. Figma trims trailing spaces in hugging text
 
 Splitting a label into coloured segments (`"Tap on "` + `"Send OTP"`) renders as `Tap onSend OTP`, because a hugging text node's width ignores trailing whitespace. Two fixes:
 
@@ -153,7 +172,7 @@ Splitting a label into coloured segments (`"Tap on "` + `"Send OTP"`) renders as
 
 Never rely on a trailing space inside a hugging text node.
 
-## 7. Apply text styles LAST when the style's font is not installed
+## 8. Apply text styles LAST when the style's font is not installed
 
 If the design system's style uses a font you do not have locally (e.g. `SF Mono`), you can still *apply* the style — but any write to that node afterwards throws:
 
@@ -177,7 +196,7 @@ const txt = (chars, styleKey, colourKey) => {
 for (const [node, key] of pending) node.textStyleId = S[key].id;
 ```
 
-## 8. Re-hug controls after applying text styles
+## 9. Re-hug controls after applying text styles
 
 A control sized with `resize()` *before* its label's style was applied keeps a stale hug width, and the label clips once the style makes the text wider. After the deferred style pass, re-hug horizontally while keeping the measured fixed height:
 
@@ -188,7 +207,7 @@ n.layoutSizingVertical = "FIXED";
 n.resize(n.width, h);
 ```
 
-## 9. Layout containers must be transparent
+## 10. Layout containers must be transparent
 
 `figma.createAutoLayout()` and `figma.createFrame()` give every container an **opaque white fill**. Left alone these are invisible on a white page but they are real untokenised fills — they wreck the coverage audit and they show as white boxes over any tinted parent. Only surfaces carry a fill style; wrappers get `fills = []`. Sweep before auditing:
 
@@ -202,7 +221,7 @@ for (const n of root.findAll(() => true)) {
 
 In one real screen this cleared 74 stray fills and moved token coverage from 81.4% to 93.5%.
 
-## 10. A FILL spacer cannot shrink — it pushes trailing content out of the frame
+## 11. A FILL spacer cannot shrink — it pushes trailing content out of the frame
 
 The spacer idiom (`spacer.layoutSizingHorizontal = "FILL"`) works only when the row has slack. When the row's intrinsic content is *wider* than the frame, the spacer refuses to go below its minimum and the trailing element overflows past the edge, clipped by the card.
 
@@ -221,7 +240,7 @@ Cap any other greedy child with a FIXED width so it cannot dominate. Then verify
 
 **Always verify a row fits by reading widths back**, rather than trusting that it looks fine at a zoomed-out scale.
 
-## 11. Decorations must not shift the thing they decorate
+## 12. Decorations must not shift the thing they decorate
 
 A tab's underline, a selected indicator, a badge dot — anything stacked with a label inside an auto-layout column changes that column's height, and therefore where centring puts the label. The result: the active tab's text sits a few pixels off from its neighbours and from anything else in the row.
 
@@ -248,11 +267,11 @@ return { allAligned: centres.length === 1, centres };
 
 In one real tab bar this exposed three different baselines (327 active, 333 inactive, 327 for the adjacent control) that all looked plausible at a glance.
 
-## 12. Selected vs. unselected states
+## 13. Selected vs. unselected states
 
 Do not blanket-apply one text style across a control group. Tabs, segmented controls and nav items have a *selected* treatment (semibold + primary text + visible underline) and an *unselected* one (regular + secondary text + hidden underline). Applying the strong style to all of them — easy to do in a bulk pass — makes every tab look active.
 
-## 13. Reuse design system components — but verify each one renders
+## 14. Reuse design system components — but verify each one renders
 
 Component instances beat hand-built frames for dev handoff: they stay linked, they carry the real spec, and a developer recognises them. Search the project's library for every control you are about to build by hand (`button`, `badge`, `tab`, `link`, `input`, `table cell`, `tooltip`).
 
@@ -294,12 +313,12 @@ After any brand override, re-read the instance and check `fills`, `strokes` and 
 
 **The project's current brand token wins over a component's baked-in colour.** When the team says "use X everywhere", apply it to instance overrides too, not just to the frames you build yourself.
 
-## 14. Check font availability before trusting a text style
+## 15. Check font availability before trusting a text style
 
 A design system can reference a font that is not installed locally (e.g. `SF Mono`). `listAvailableFontsAsync()` tells you. An imported text style still applies — the style carries the font reference — but any node you *create* must be given a loadable font before you set `characters`. Create text with a font you know is available, set the characters, then apply `textStyleId`.
 
 Also: verify the style names. SF Pro exposes `Regular / Medium / Semibold / Bold / Light`; Inter uses `Semi Bold` (with a space), not `SemiBold`.
 
-## 15. Don't default everything to body size
+## 16. Don't default everything to body size
 
 Dense product UIs run much smaller than marketing pages. One real screen's type census: **13px (5535 uses), 11px (1031), 12px (~1500)**. Buttons and badges were 12px/500, meta text 11px/400. Mapping all of it to a 13px body style makes every control look inflated. Map per measured size, and use the Semibold variants for control labels.

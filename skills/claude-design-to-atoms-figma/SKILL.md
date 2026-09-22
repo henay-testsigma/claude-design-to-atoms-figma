@@ -168,6 +168,7 @@ Load `figma-use` and `figma-generate-design` now. Then:
 3. **Build one screen per `use_figma` call**, following `figma-generate-design` Step 4 — import component sets/variables/styles in a single `Promise.all`, bind variables for fills/spacing/radii, set `textStyleId` from the mapped text style, `effectStyleId` for shadows. Apply `mapping.json` mechanically; do not re-decide colors per screen.
 
    **Read [references/fidelity.md](references/fidelity.md) before writing the first build script.** Non-negotiables:
+   - **Rebuild every region of the viewport, not just the one that changes.** List the captured page's regions first — global nav rail/sidebar, top bar, toolbar, content, footer — and tick each off. A persistent left rail is the classic omission: it looks fine in isolation and is missing from every screen. Build chrome once in the base so clones inherit it; adding it later narrows the content area and causes overflow on every screen at once.
    - **Auto-layout everywhere.** Every container is `figma.createAutoLayout()`; absolute x/y only positions the top-level screen frame. Push trailing actions right with a spacer frame set to `FILL`.
    - **Take geometry from `computed.json`, never by eye** — padding, gap, height, radius, font size/weight. Give controls a *fixed* measured height and let width hug.
    - **Borders and shadows.** Secondary buttons have a hairline *and* a soft shadow; tinted badges take a tinted border; tinted cards take a light (200/300) border, not the text colour; selected rows often use a 2px inset side edge.

@@ -138,6 +138,11 @@ def main():
     ap.add_argument("--probe", action="store_true",
                     help="click each candidate in a fresh page and keep the ones that change the view")
     ap.add_argument("--max-probes", type=int, default=40)
+    ap.add_argument("--depth", type=int, default=1,
+                    help="probe depth. 1 = top level only. 2 = also probe INSIDE each "
+                         "discovered state, which is the only way nested flows (a modal's "
+                         "own view pickers, toggles and tabs) are found. Use 2 whenever "
+                         "any state is a modal, drawer or overlay.")
     ap.add_argument("--viewport", default="1440x900")
     ap.add_argument("--screen", help="which html file to probe (default: the entry point)")
     ap.add_argument("--settle", type=int, default=700, help="ms to wait after each click")
