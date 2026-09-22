@@ -54,6 +54,19 @@ n.strokeTopWeight = 0; n.strokeBottomWeight = 0; n.strokeRightWeight = 0;
 n.strokeLeftWeight = 2;
 ```
 
+**Hairlines are often 0.5px, not 1px.** A control that reads as a crisp hairline on a retina render is usually a half-pixel stroke; setting 1px makes every button look heavier than the design. Use `strokeWeight = 0.5` with `strokeAlign = "INSIDE"` for button/badge/chip outlines, and reserve 1px for genuine dividers.
+
+**Frames clip by default, which crops child shadows.** A button's drop shadow disappears or cuts off at its row's edge because the parent frame has `clipsContent = true`. After building a screen, sweep every descendant frame and set `clipsContent = false`, leaving it `true` only on the outer screen frame:
+
+```js
+for (const f of screen.findAll(() => true)) {
+  if ("clipsContent" in f && f.id !== screen.id) f.clipsContent = false;
+}
+screen.clipsContent = true;
+```
+
+Symptom to watch for: shadows that look fine on an isolated node screenshot but vanish or square off in the full screen.
+
 A border's colour is a *token*, not the same token as the fill: a green card is `Primary/50` fill + `Primary/300` border + `Primary/600` text. Using one green for all three is the classic tell.
 
 ## 3. Icons: real components, never glyphs or emoji
@@ -117,12 +130,65 @@ Splitting a label into coloured segments (`"Tap on "` + `"Send OTP"`) renders as
 
 Never rely on a trailing space inside a hugging text node.
 
-## 7. Check font availability before trusting a text style
+## 7. Apply text styles LAST when the style's font is not installed
+
+If the design system's style uses a font you do not have locally (e.g. `SF Mono`), you can still *apply* the style — but any write to that node afterwards throws:
+
+```
+Cannot write to node with unloaded font "SF Mono Regular"
+```
+
+So `textAutoResize`, `layoutSizing*`, or a characters edit after applying the style will fail mid-script and leave a half-built screen. Build every text node with a font you know is loadable, do all layout mutations, then apply `textStyleId` in a final pass:
+
+```js
+const pending = [];
+const txt = (chars, styleKey, colourKey) => {
+  const t = figma.createText();
+  t.fontName = { family: "SF Pro", style: "Regular" };   // known-loadable
+  t.characters = chars;
+  t.fillStyleId = P[colourKey].id;
+  pending.push([t, styleKey]);                            // defer the style
+  return t;
+};
+// ... build and lay out everything ...
+for (const [node, key] of pending) node.textStyleId = S[key].id;
+```
+
+## 8. Re-hug controls after applying text styles
+
+A control sized with `resize()` *before* its label's style was applied keeps a stale hug width, and the label clips once the style makes the text wider. After the deferred style pass, re-hug horizontally while keeping the measured fixed height:
+
+```js
+const h = n.height;
+n.layoutSizingHorizontal = "HUG";
+n.layoutSizingVertical = "FIXED";
+n.resize(n.width, h);
+```
+
+## 9. Layout containers must be transparent
+
+`figma.createAutoLayout()` and `figma.createFrame()` give every container an **opaque white fill**. Left alone these are invisible on a white page but they are real untokenised fills — they wreck the coverage audit and they show as white boxes over any tinted parent. Only surfaces carry a fill style; wrappers get `fills = []`. Sweep before auditing:
+
+```js
+for (const n of root.findAll(() => true)) {
+  if (n.type !== "FRAME" || n.id === root.id) continue;
+  if (n.fillStyleId && n.fillStyleId !== figma.mixed) continue;   // intentionally styled
+  if (Array.isArray(n.fills) && n.fills.length) n.fills = [];
+}
+```
+
+In one real screen this cleared 74 stray fills and moved token coverage from 81.4% to 93.5%.
+
+## 10. Selected vs. unselected states
+
+Do not blanket-apply one text style across a control group. Tabs, segmented controls and nav items have a *selected* treatment (semibold + primary text + visible underline) and an *unselected* one (regular + secondary text + hidden underline). Applying the strong style to all of them — easy to do in a bulk pass — makes every tab look active.
+
+## 11. Check font availability before trusting a text style
 
 A design system can reference a font that is not installed locally (e.g. `SF Mono`). `listAvailableFontsAsync()` tells you. An imported text style still applies — the style carries the font reference — but any node you *create* must be given a loadable font before you set `characters`. Create text with a font you know is available, set the characters, then apply `textStyleId`.
 
 Also: verify the style names. SF Pro exposes `Regular / Medium / Semibold / Bold / Light`; Inter uses `Semi Bold` (with a space), not `SemiBold`.
 
-## 8. Don't default everything to body size
+## 12. Don't default everything to body size
 
 Dense product UIs run much smaller than marketing pages. One real screen's type census: **13px (5535 uses), 11px (1031), 12px (~1500)**. Buttons and badges were 12px/500, meta text 11px/400. Mapping all of it to a 13px body style makes every control look inflated. Map per measured size, and use the Semibold variants for control labels.
