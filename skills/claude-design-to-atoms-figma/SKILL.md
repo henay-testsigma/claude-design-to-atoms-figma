@@ -21,6 +21,8 @@ Turn a Claude design deliverable into real Figma screens that are **linked to th
 
 - Figma MCP connected. Batch-load the schemas in one call:
   `ToolSearch query="select:use_figma,get_screenshot,get_metadata,search_design_system,get_libraries,create_new_file,generate_figma_design"`
+  **If that returns no matches and the only Figma tool you can see is `authenticate`, the MCP is not connected.** Call the plugin's `authenticate`, give the user the URL, and wait — do not start Phase 3 or 6 until the real tools appear. Check this at the very start; Phases 1, 2 and 5 can run while the user authorises.
+- `search_design_system` currently **clamps a batched `queries` array to one query**. Issue several search calls in parallel rather than batching them.
 - A target Figma **file key** and, ideally, a **target node** (page, section, or frame) to place screens under.
 - The design system must already exist in the target file or a library linked to it.
 
@@ -62,6 +64,8 @@ Unpacks the zip/folder/html, then writes `$RUN/inventory.json`: every HTML entry
 
 Read `inventory.json`, then read the actual markup for the entry points. **Do not skip reading the source** — the inventory tells you where to look, not what the design is.
 
+**Bundler-wrapped artifacts.** A Claude design exported as a single HTML is often a *self-unpacking bundle*: a 1–2 MB file whose body is just `<div id="__bundler_thumbnail">` / `__bundler_loading` and a payload that JS inflates at runtime. Tell-tale signs — total visible text under ~200 characters, "This page requires JavaScript to display", `framework: ["react"]` with **no** `spa_signals`, and almost no colour literals. For these, static analysis can tell you nothing at all: Phases 2 and 5 **must** come from the render. Do not report "no flows found" from the static pass on such a file.
+
 ### Phase 2 — Extract the design's own tokens
 
 ```bash
@@ -74,10 +78,22 @@ Static pass — collects CSS custom properties, every color literal (hex/rgb/rgb
 
 ```bash
 python3 "$SKILL"/scripts/capture_screens.py "$RUN" --out "$RUN/capture" \
-  --viewport 1440x900 [--states "$RUN/states.json"]
+  --viewport 1440x900 [--states "$RUN/states.json"]   # states.json comes from Phase 2b
 ```
 
 Per screen this writes a PNG plus `computed.json` (per-element computed color, background, font, size, line-height, radius, shadow, box geometry). If Playwright browsers are not installed the script prints the one-line install command and exits non-zero — run it, or fall back to the static pass and say so in your report. Merge computed values into `source-tokens.json` with `--merge-computed`.
+
+### Phase 2b — Discover interaction states (required for SPA / bundled designs)
+
+A single-screen app's "flows" are tabs, expanders, modals and toggles that exist only after JS runs. `extract_flows.py` reads markup and will find **zero** of them. Discover them from the live DOM instead:
+
+```bash
+python3 "$SKILL"/scripts/discover_states.py "$RUN" --out "$RUN/states.json"   --probe --max-probes 40
+```
+
+Without `--probe` it just lists interactive elements. With `--probe` it loads a fresh page per candidate, clicks it, and keeps only those that change a DOM signature — deduping states that land on the same view and skipping destructive labels (download, delete, submit…). The output feeds `capture_screens.py --states` directly.
+
+Review the result: it finds *what changes the view*, not *what matters*. Drop states that are visually trivial, and add any it missed (elements behind a hover, a scroll, or two clicks deep — give those hand-written `actions` arrays).
 
 ### Phase 3 — Load the design system from Figma
 
@@ -103,6 +119,8 @@ Save the result verbatim to `$RUN/design-system.json`.
 2. The library must be **published**. Unpublished local styles still have `key` values, but `importStyleByKeyAsync` on them fails in the target file. If imports fail with a missing-key error, an unpublished (or newly edited, unpublished) style is the usual cause — say so rather than falling back to raw hexes.
 3. Harvest names + `key`s by running the inspect script against the library file, then in the target file import by key: `figma.importStyleByKeyAsync(key)`, `figma.variables.importVariableByKeyAsync(key)`, `figma.importComponentSetByKeyAsync(key)`. Keys are stable across files; ids are not — never carry an `id` between files.
 4. Cross-check with `search_design_system` using separate `{entity, query}` entries (one intent per query, never OR-packed), which *does* see remote libraries. Fold anything new into `design-system.json`.
+
+**A system may have no variables at all.** Many mature Figma libraries are styles-only (paint/text/effect styles, zero variable collections). That is a valid system, not a failed read — but it means radii and spacing **cannot** be bound to tokens. Apply them as literals and say so in the report rather than claiming token coverage you did not achieve.
 
 Cache `design-system.json` per **library** file key, not per target file — one read serves every screen import into every file that links it. Re-read when the user says the system changed.
 
@@ -145,6 +163,13 @@ Load `figma-use` and `figma-generate-design` now. Then:
 1. **Resolve the anchor.** `get_metadata` on the target node. If it is a page, create a `SECTION` named `<Design name> — imported <YYYY-MM-DD>` in clear space to the right of existing content. If it is an existing section/frame, append inside it. Never drop frames at (0,0) on top of the user's work.
 2. **Lay out the grid.** One frame per flow node, flow order left→right, one row per flow branch, 200px gutters, 400px between rows. Name frames `<NN> <Screen name>` and modals `<NN>.<n> <State name>` so the flow order survives in the layers panel.
 3. **Build one screen per `use_figma` call**, following `figma-generate-design` Step 4 — import component sets/variables/styles in a single `Promise.all`, bind variables for fills/spacing/radii, set `textStyleId` from the mapped text style, `effectStyleId` for shadows. Apply `mapping.json` mechanically; do not re-decide colors per screen.
+
+   **Read [references/fidelity.md](references/fidelity.md) before writing the first build script.** Non-negotiables:
+   - **Auto-layout everywhere.** Every container is `figma.createAutoLayout()`; absolute x/y only positions the top-level screen frame. Push trailing actions right with a spacer frame set to `FILL`.
+   - **Take geometry from `computed.json`, never by eye** — padding, gap, height, radius, font size/weight. Give controls a *fixed* measured height and let width hug.
+   - **Borders and shadows.** Secondary buttons have a hairline *and* a soft shadow; tinted badges take a tinted border; tinted cards take a light (200/300) border, not the text colour; selected rows often use a 2px inset side edge.
+   - **Icons are component instances, never emoji and never text glyphs.** Material Symbols: pick `style=outlined, weight=500` explicitly — the default variant is weight 100. **Minimum 16x16**, always. Colour only the vector children; painting the instance frame produces a solid block.
+   - **Word gaps.** Figma trims trailing spaces in hugging text, so split colour segments run together. Trim segments and use `itemSpacing`, or use one text node with `setRangeFillStyleId`.
 4. **Images.** `use_figma` cannot fetch URLs. If the design has images, run `generate_figma_design` against the **same fileKey** in parallel with step 3, then copy `imageHash` values from the capture's image fills onto your frames and delete the capture. Embedded data-URI images still need this path.
 5. **Flow connectors.** Design files have no FigJam connectors. Draw flow arrows as thin vector/line + label text grouped in a `Flow` frame behind the screens, or add a `## Flow` text block listing transitions. Ask which the user prefers if the flow has more than ~8 edges.
 
@@ -175,9 +200,13 @@ When the user iterates on the design and re-imports, do not duplicate the sectio
 - **One giant `use_figma` script.** One screen per call, return node IDs from every call.
 - **Skipping the render.** A Tailwind-CDN design has almost no color literals in its markup; the computed capture is where the real values live.
 - **Reporting "done" off a thumbnail.** Per-frame screenshots and the token audit are the completion criteria.
+- **Estimating spacing.** If a padding or radius in your script is not traceable to `computed.json`, it is a guess and it will read as wrong.
+- **Flat output.** Missing 1px hairlines and soft shadows is the most common reason a rebuild looks "off" even when colours and text are right.
+- **Emoji or glyph icons.** Always instances from the icon library.
 
 ## References
 
 - `references/token-mapping.md` — semantic mapping rules, type fallback order, dark mode/elevation, gradients.
 - `references/flow-extraction.md` — the navigation patterns Claude designs use and how each maps to a flow edge.
 - `references/placement.md` — anchor resolution, grid math, naming, connectors, re-run diffing.
+- `references/fidelity.md` — measured geometry, borders/shadows, icon components, auto-layout and text-spacing rules. Read before building.

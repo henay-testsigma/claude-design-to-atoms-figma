@@ -89,7 +89,15 @@ def main():
 
     states = []
     if args.states and os.path.exists(args.states):
-        states = json.load(open(args.states))
+        loaded = json.load(open(args.states))
+        # discover_states.py writes {screen, candidates, states, skipped};
+        # a hand-written file may be a bare list of state objects.
+        states = loaded["states"] if isinstance(loaded, dict) else loaded
+        bad = [s for s in states if not isinstance(s, dict) or "screen" not in s]
+        if bad:
+            print("%d malformed state entries ignored (need {screen, name, actions})"
+                  % len(bad), file=sys.stderr)
+            states = [s for s in states if s not in bad]
 
     captured, failed = [], []
     try:
@@ -115,7 +123,10 @@ def main():
                 page.wait_for_timeout(600)  # in-page Babel/React needs a beat
                 for act in actions or []:
                     try:
-                        if "click" in act:
+                        if "role" in act and "name" in act:
+                            page.get_by_role(act["role"], name=act["name"],
+                                             exact=True).first.click(timeout=3000)
+                        elif "click" in act and act["click"]:
                             page.click(act["click"], timeout=3000)
                         elif "fill" in act:
                             page.fill(act["fill"], act.get("value", ""), timeout=3000)
