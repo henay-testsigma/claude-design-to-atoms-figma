@@ -92,6 +92,8 @@ inst.layoutSizingVertical = "FIXED";
 inst.resize(16, 16);
 ```
 
+**Type-size floor.** A design system's smallest text style may be larger than the source's smallest size (e.g. source uses 11px, the system's smallest is 12px). Controls built from it will be slightly wider than the original — a pill measured at 120px may come out 137px. This is correct behaviour (the system wins over the mock), but say so in the report rather than letting it read as a layout bug.
+
 **Minimum icon size is 16x16.** Never place a 12 or 14px icon — below 16 the Material Symbols geometry loses legibility and rows stop aligning to the 16px rhythm. Set both axes `FIXED` and `resize(16, 16)` (or larger), and sweep the screen at the end to catch any that slipped through.
 
 Colour an instance by walking its descendants and setting `fillStyleId` on every node with fills — setting it on the instance alone does not always reach the vectors.
@@ -179,16 +181,35 @@ for (const n of root.findAll(() => true)) {
 
 In one real screen this cleared 74 stray fills and moved token coverage from 81.4% to 93.5%.
 
-## 10. Selected vs. unselected states
+## 10. A FILL spacer cannot shrink — it pushes trailing content out of the frame
+
+The spacer idiom (`spacer.layoutSizingHorizontal = "FILL"`) works only when the row has slack. When the row's intrinsic content is *wider* than the frame, the spacer refuses to go below its minimum and the trailing element overflows past the edge, clipped by the card.
+
+Symptom: a status pill or action button hanging off the right edge of a card that is itself correctly sized.
+
+Fix: drop the spacer and make the naturally-flexible element (usually a date, filename or title) absorb the slack *and* be allowed to truncate:
+
+```js
+dateText.textAutoResize = "HEIGHT";
+dateText.layoutSizingHorizontal = "FILL";
+dateText.textTruncation = "ENDING";
+dateText.maxLines = 1;
+```
+
+Cap any other greedy child with a FIXED width so it cannot dominate. Then verify by summing: children + gaps + padding must equal the frame width. In one real header: 120 + 77 + 60 + 16 gaps + 24 padding = 297 = the card width, exactly.
+
+**Always verify a row fits by reading widths back**, rather than trusting that it looks fine at a zoomed-out scale.
+
+## 11. Selected vs. unselected states
 
 Do not blanket-apply one text style across a control group. Tabs, segmented controls and nav items have a *selected* treatment (semibold + primary text + visible underline) and an *unselected* one (regular + secondary text + hidden underline). Applying the strong style to all of them — easy to do in a bulk pass — makes every tab look active.
 
-## 11. Check font availability before trusting a text style
+## 12. Check font availability before trusting a text style
 
 A design system can reference a font that is not installed locally (e.g. `SF Mono`). `listAvailableFontsAsync()` tells you. An imported text style still applies — the style carries the font reference — but any node you *create* must be given a loadable font before you set `characters`. Create text with a font you know is available, set the characters, then apply `textStyleId`.
 
 Also: verify the style names. SF Pro exposes `Regular / Medium / Semibold / Bold / Light`; Inter uses `Semi Bold` (with a space), not `SemiBold`.
 
-## 12. Don't default everything to body size
+## 13. Don't default everything to body size
 
 Dense product UIs run much smaller than marketing pages. One real screen's type census: **13px (5535 uses), 11px (1031), 12px (~1500)**. Buttons and badges were 12px/500, meta text 11px/400. Mapping all of it to a 13px body style makes every control look inflated. Map per measured size, and use the Semibold variants for control labels.
