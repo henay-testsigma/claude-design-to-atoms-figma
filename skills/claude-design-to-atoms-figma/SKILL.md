@@ -176,6 +176,26 @@ Load `figma-use` and `figma-generate-design` now. Then:
 
 ### Phase 7 — Validate
 
+**Run `scripts/verify_screen.js` through `use_figma` on every screen, and fix everything it reports, BEFORE showing the user anything.** Set `ROOT_ID` to the screen frame. It returns a defect list plus `PASS` (true when there are no high-severity defects). A screen is not done until `PASS` is true.
+
+It checks, automatically, every class of defect that otherwise comes back as review feedback:
+
+| Check | Severity | Catches |
+|---|---|---|
+| `untokenised-fill/stroke/text/effect` | high | values not bound to a design system style |
+| `stray-container-fill` | high | the default white fill on a layout container |
+| `child-overflows-parent` | high | a badge or link pushed past the card edge by a FILL spacer |
+| `emoji-in-text` / `glyph-used-as-icon` | high | icons faked with text |
+| `icon-placeholder` | high | an icon left as a plain frame |
+| `zero-size-text` | high | text collapsed by a sizing mistake |
+| `icon-below-minimum` | medium | icons under 16px |
+| `inner-frame-clips` | medium | a frame cropping child shadows |
+| `labels-not-on-one-baseline` | medium | a decoration shifting its own label |
+
+Iterate: run, fix, re-run. Report the final numbers honestly — coverage, remaining defects, and anything untokenisable (e.g. radii when the system has no variables).
+
+Then the visual pass:
+
 1. `get_screenshot` **per screen frame** (not one zoomed-out shot) and compare against `$RUN/capture/<screen>.png`. Fix with targeted calls; never rebuild a whole screen.
 2. Assert fonts: the rendered family must be the design's family (from Phase 2), not Inter-by-default.
 3. **Token coverage audit** — run `$SKILL/scripts/audit_tokens.js` through `use_figma` against the imported section. It returns every fill, stroke, text, radius and effect that is *not* bound to a variable or style, with node IDs. Target: zero, minus the rows the user approved as unmapped. Report the number both ways.
@@ -200,7 +220,8 @@ When the user iterates on the design and re-imports, do not duplicate the sectio
 - **Nearest-color-wins on semantics.** A muted grey-green in an error banner maps to Error, not Primary. `references/token-mapping.md` has the override rules.
 - **One giant `use_figma` script.** One screen per call, return node IDs from every call.
 - **Skipping the render.** A Tailwind-CDN design has almost no color literals in its markup; the computed capture is where the real values live.
-- **Reporting "done" off a thumbnail.** Per-frame screenshots and the token audit are the completion criteria.
+- **Reporting "done" off a thumbnail.** `verify_screen.js` returning `PASS`, plus a per-frame screenshot comparison, are the completion criteria.
+- **Letting the reviewer find mechanical defects.** Overflow, stray fills, glyph icons, sub-16px icons and baseline drift are all machine-detectable. If a human is reporting them, the verifier was not run.
 - **Estimating spacing.** If a padding or radius in your script is not traceable to `computed.json`, it is a guess and it will read as wrong.
 - **Flat output.** Missing 1px hairlines and soft shadows is the most common reason a rebuild looks "off" even when colours and text are right.
 - **Emoji or glyph icons.** Always instances from the icon library.
