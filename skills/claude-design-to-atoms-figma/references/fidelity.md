@@ -98,6 +98,27 @@ inst.resize(16, 16);
 
 Colour an instance by walking its descendants and setting `fillStyleId` on every node with fills — setting it on the instance alone does not always reach the vectors.
 
+**Audit for missing icons before calling a screen done.** The most common icon defect is not a wrong icon but an *absent* one — a toolbar rebuilt as plain text when the source pairs every label with a glyph. Cross-check against the render: count the `<svg>` elements in a region and make sure the same number of icon nodes exists in Figma. `scripts/extract_icons.py` prints that inventory.
+
+**Fallback when the library has no match:** pull the real SVG out of the render and insert it directly.
+
+```bash
+python3 "$SKILL"/scripts/extract_icons.py "$RUN" --out "$RUN/icons"
+```
+
+It writes one deduped `.svg` per distinct icon plus `icons.json` (nearest label, size, colour, use count) so each maps to the right slot. Insert with:
+
+```js
+const node = figma.createNodeFromSvg(svgText);
+node.name = "Icon / <name>";
+node.resize(16, 16);                     // never below 16
+for (const c of node.findAll(() => true)) {
+  if (c.type === "VECTOR") c.fillStyleId = colourStyle.id;
+}
+```
+
+Use the library first and this only for genuine gaps — an imported SVG is a detached vector that will not track the design system.
+
 Icons are found with `search_design_system` by their Material name (`chevron_right`, `check_circle`, `cancel`, `edit`, `thumb_up`, `thumb_down`). **The server clamps a batched `queries` array to one query**, so issue several search calls in parallel instead of batching.
 
 ## 4. Auto-layout everywhere — stacks, not coordinates
