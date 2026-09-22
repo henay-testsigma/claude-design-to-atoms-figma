@@ -200,16 +200,43 @@ Cap any other greedy child with a FIXED width so it cannot dominate. Then verify
 
 **Always verify a row fits by reading widths back**, rather than trusting that it looks fine at a zoomed-out scale.
 
-## 11. Selected vs. unselected states
+## 11. Decorations must not shift the thing they decorate
+
+A tab's underline, a selected indicator, a badge dot — anything stacked with a label inside an auto-layout column changes that column's height, and therefore where centring puts the label. The result: the active tab's text sits a few pixels off from its neighbours and from anything else in the row.
+
+Two rules keep a control row on one baseline:
+
+1. **Every item in the group keeps identical structure.** Do not remove the underline from inactive tabs — keep it in the layout and make it transparent (`visible = true`, `fills = []`). A hidden child (`visible = false`) is excluded from auto-layout, so hiding it changes that tab's height and moves its label.
+2. **Anchor the label, not the block.** Give each column a fixed height equal to the row, `primaryAxisAlignItems = "MIN"`, and a measured `paddingTop`. The label's position is then governed by the padding alone and the decoration can never move it.
+
+```js
+tab.layoutSizingVertical = "FIXED";
+tab.resize(tab.width, ROW_H);
+tab.primaryAxisAlignItems = "MIN";
+tab.paddingTop = 11;          // measured
+underline.visible = true;      // present for every tab
+if (!isActive) underline.fills = [];
+```
+
+**Verify numerically, not by eye.** Collect each label's absolute vertical centre and assert there is exactly one distinct value:
+
+```js
+const centres = [...new Set(labels.map((l) => l.centre))];
+return { allAligned: centres.length === 1, centres };
+```
+
+In one real tab bar this exposed three different baselines (327 active, 333 inactive, 327 for the adjacent control) that all looked plausible at a glance.
+
+## 12. Selected vs. unselected states
 
 Do not blanket-apply one text style across a control group. Tabs, segmented controls and nav items have a *selected* treatment (semibold + primary text + visible underline) and an *unselected* one (regular + secondary text + hidden underline). Applying the strong style to all of them — easy to do in a bulk pass — makes every tab look active.
 
-## 12. Check font availability before trusting a text style
+## 13. Check font availability before trusting a text style
 
 A design system can reference a font that is not installed locally (e.g. `SF Mono`). `listAvailableFontsAsync()` tells you. An imported text style still applies — the style carries the font reference — but any node you *create* must be given a loadable font before you set `characters`. Create text with a font you know is available, set the characters, then apply `textStyleId`.
 
 Also: verify the style names. SF Pro exposes `Regular / Medium / Semibold / Bold / Light`; Inter uses `Semi Bold` (with a space), not `SemiBold`.
 
-## 13. Don't default everything to body size
+## 14. Don't default everything to body size
 
 Dense product UIs run much smaller than marketing pages. One real screen's type census: **13px (5535 uses), 11px (1031), 12px (~1500)**. Buttons and badges were 12px/500, meta text 11px/400. Mapping all of it to a 13px body style makes every control look inflated. Map per measured size, and use the Semibold variants for control labels.
