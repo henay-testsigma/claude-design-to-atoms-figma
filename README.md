@@ -6,13 +6,25 @@ The problem it solves: pasting a generated design into Figma gives you a pile of
 
 ## What it does
 
-1. **Ingest** — unpacks the design, finds entry points, detects Tailwind-CDN / in-page React / Vite builds, flags single-page designs whose screens are client-side views.
-2. **Extract source tokens** — a static pass over the markup, then a **headless render** that reads *computed* styles per element. The render matters: a Tailwind-CDN design has almost no color literals in its source, so the real values only exist after the browser resolves them.
-3. **Read your design system** — dumps paint styles, text styles, effect styles, variable collections and component keys from the file that owns your system. No values are ever hardcoded.
-4. **Mapping ledger** — matches colors by **CIEDE2000 in CIELAB** (not hex-string proximity), type by size + line-height + weight + family. Every row is banded `exact` / `close` / `far` / `unmapped` / `gradient-stop`, written to a reviewable `MAPPING.md`, and **you approve it before anything is written to Figma**.
-5. **Flow extraction** — derives the screen graph from links, route tables, hash routers, `setView` state enums, and modal/empty/error markers, then orders the screens for a left-to-right flow.
-6. **Place into Figma** — resolves your target node, creates a dated section in clear space, and builds one frame per screen using your components, styles and variables (delegating canvas writes to the official `figma-use` / `figma-generate-design` skills).
-7. **Audit** — reports every fill, stroke, text, radius and effect *not* bound to a style or variable, so token coverage is a measured number rather than a claim.
+1. **Ingest** — unpacks the design, finds entry points, detects Tailwind-CDN / in-page React / Vite builds, and recognises self-unpacking Claude artifacts whose markup is invisible until JS runs.
+2. **Extract source tokens** — a static pass, then a **headless render** that reads *computed* styles per element. The render matters: a Tailwind design has almost no colour literals in its source.
+3. **Discover states** — enumerates interactive elements in the rendered DOM and probes them, including **nested states** (`--depth 2`) that only exist once a modal is open. It also flags prototype scaffolding so authoring chrome never gets drawn into a screen.
+4. **Read your design system** — pulls paint/text/effect styles, variables and component keys from the file that *owns* the system. No values are hardcoded.
+5. **Mapping ledger** — colours matched by CIEDE2000 in CIELAB, type by size + line-height + weight + family, banded `exact` / `close` / `far` / `unmapped` / `gradient-stop` into a reviewable `MAPPING.md` you approve before anything is written.
+6. **Build** — one frame per state, grouped into Figma sections by page variant, using your components, styles and icon library throughout.
+7. **Two quality gates** — see below.
+
+## Quality gates
+
+A screen is not done until both pass:
+
+**Completeness** — `compare_to_capture.py` diffs the built frame's text against the captured source state. A screen can be perfectly tokenised and still be *underbuilt* — a grey placeholder where the source has a whole rebuilt region. That is invisible to a style audit but trivially measurable.
+
+**Correctness** — `verify_screen.js` runs 19 checks in Figma and returns a ranked defect list plus `PASS`:
+
+`untokenised-fill/stroke/text/effect` · `stray-container-fill` · `child-overflows-parent` · `content-clipped` · `emoji-in-text` · `glyph-used-as-icon` · `icon-placeholder` · `icon-below-minimum` · `zero-size-text` · `missing-font-invisible-text` · `missing-font-substituted` · `modal-without-close` · `frame-taller-than-content` · `inner-frame-clips` · `labels-not-on-one-baseline`
+
+Every one of these exists because it was found by a human reviewer first. The point of the skill is that it never needs to be again.
 
 ## Install
 
@@ -72,6 +84,22 @@ Phase 3 handles the case most workflows get wrong: if your system is a **linked 
 - **The ledger is the contract.** Once approved it is applied mechanically to every screen, so the same design value always lands on the same token — including across re-imports.
 
 See `skills/claude-design-to-atoms-figma/references/` for the full rules on token mapping, flow extraction, and placement.
+
+## Scripts
+
+| Script | Purpose |
+|---|---|
+| `ingest_design.py` | unpack and inventory the design |
+| `capture_screens.py` | headless render: PNG + computed styles per state |
+| `discover_states.py` | find interaction states, including nested ones (`--depth 2`) |
+| `extract_tokens.py` | collect the design's own colour/type/spacing values |
+| `extract_flows.py` | derive the screen graph |
+| `extract_icons.py` | pull inline SVGs for icons the library lacks |
+| `map_tokens.py` | match source values to design system tokens (CIEDE2000) |
+| `inspect_design_system.js` | read styles/variables/components out of Figma |
+| `compare_to_capture.py` | **completeness gate** — text parity vs the source |
+| `verify_screen.js` | **correctness gate** — 19 automated checks |
+| `audit_tokens.js` | standalone token-coverage audit |
 
 ## Notes
 
