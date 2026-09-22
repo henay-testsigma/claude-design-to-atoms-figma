@@ -193,6 +193,8 @@ It checks, automatically, every class of defect that otherwise comes back as rev
 | `icon-placeholder` | high | an icon left as a plain frame |
 | `zero-size-text` | high | text collapsed by a sizing mistake |
 | `missing-font-invisible-text` | high | a label inside an instance that may paint nothing because its font is not installed |
+| `modal-without-close` | high | a drawer or modal with no dismiss control |
+| `frame-taller-than-content` | medium | dead canvas below the content; size to content, or to the viewport for a modal |
 | `missing-font-substituted` | medium | text rendering in a fallback typeface because the system's font is not installed locally — report it, it is an environment gap, not a build error |
 | `icon-below-minimum` | medium | icons under 16px |
 | `inner-frame-clips` | medium | a frame cropping child shadows |

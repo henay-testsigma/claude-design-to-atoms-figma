@@ -268,6 +268,12 @@ Use what fits, hand-build the rest, and **tell the user which components you use
 
 **A component must not change the design.** Reuse is for consistency, not for redecorating. If a component adds an element the source does not have — a status badge that ships with an icon where the design shows a plain text pill — using it makes the Figma file diverge from the thing being handed off. Match the source: hand-build the variant on the system's colour and text tokens, and keep related statuses consistent with each other. Reach for the component only when it matches what the design actually shows.
 
+**Append an instance before calling `setProperties`.** Setting a component property on an instance that is not yet in the tree can silently no-op, leaving the component's default label ("Button") on screen. Append first, then set properties, then read the label back and write `characters` directly as a fallback.
+
+**Every drawer and modal needs its dismiss control.** A close affordance is part of the design, not chrome to be skipped — a drawer without one reads as broken to a developer. `verify_screen.js` flags `modal-without-close`.
+
+**Size the frame to the content, not to a fixed canvas.** A 1920px frame holding 800px of content leaves dead space that makes the file hard to read and misleads the developer about the intended height. Size a page frame to its content, and a modal or overlay to the **viewport** — a centred modal never scrolls, so it is viewport height minus its margins (about 835px at a 900px viewport). `verify_screen.js` flags `frame-taller-than-content`.
+
 **Snapshot before you mutate.** Removing an instance invalidates every node inside it, so a live `findAll` traversal that swaps instances will throw `The node with id "I…;…" does not exist` partway through. Collect the target ids first, then loop over the snapshot and re-fetch each node by id.
 
 **A component can silently render nothing.** The most dangerous library defect is a component wired to a legacy text style whose font is not installed: the TEXT node exists, holds the right characters, reports `visible: true` and `opacity: 1`, and paints *nothing*. Detect it with `node.hasMissingFont`, never by reading the node tree.

@@ -160,6 +160,33 @@ for (const rowNode of root.findAll((n) =>
   }
 }
 
+// --- dismissible surfaces need a dismiss control ----------------------------
+for (const surf of root.findAll((n) => n.name && (n.name.indexOf("Drawer / ") === 0 ||
+    n.name.indexOf("Modal") === 0 || n.name === "Compare overlay" || n.name === "Agent panel"))) {
+  const hasClose = surf.findAll((c) => c.name === "Icon / close" ||
+    (c.name && c.name.indexOf("Button / Close") === 0)).length > 0;
+  if (!hasClose) add("modal-without-close", "high", surf,
+    "a drawer/modal with no close control - the dismiss affordance is part of the design");
+}
+
+// --- dead canvas below the content -----------------------------------------
+{
+  let maxBottom = 0;
+  const top = root.absoluteBoundingBox.y;
+  for (const n of root.findAll(() => true)) {
+    if (n.visible === false) continue;
+    if ("layoutSizingVertical" in n && n.layoutSizingVertical === "FILL") continue;
+    const b = n.absoluteBoundingBox;
+    if (b) maxBottom = Math.max(maxBottom, b.y + b.height - top);
+  }
+  const slack = root.height - maxBottom;
+  if (slack > 120 && root.height > 900) {
+    add("frame-taller-than-content", "medium", root,
+      Math.round(slack) + "px of empty canvas below the content - size the frame to the " +
+      "content, or to the viewport for a modal that never scrolls");
+  }
+}
+
 const order = { high: 0, medium: 1, low: 2 };
 defects.sort((a, b) => order[a.severity] - order[b.severity]);
 const counts = {};
