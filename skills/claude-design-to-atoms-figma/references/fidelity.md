@@ -266,6 +266,10 @@ Component instances beat hand-built frames for dev handoff: they stay linked, th
 
 Use what fits, hand-build the rest, and **tell the user which components you used and which you rejected and why** — a stale component is a design system finding worth surfacing.
 
+**A component must not change the design.** Reuse is for consistency, not for redecorating. If a component adds an element the source does not have — a status badge that ships with an icon where the design shows a plain text pill — using it makes the Figma file diverge from the thing being handed off. Match the source: hand-build the variant on the system's colour and text tokens, and keep related statuses consistent with each other. Reach for the component only when it matches what the design actually shows.
+
+**Snapshot before you mutate.** Removing an instance invalidates every node inside it, so a live `findAll` traversal that swaps instances will throw `The node with id "I…;…" does not exist` partway through. Collect the target ids first, then loop over the snapshot and re-fetch each node by id.
+
 **A component can silently render nothing.** The most dangerous library defect is a component wired to a legacy text style whose font is not installed: the TEXT node exists, holds the right characters, reports `visible: true` and `opacity: 1`, and paints *nothing*. Detect it with `node.hasMissingFont`, never by reading the node tree.
 
 Real example: `new_Button`'s Primary variants used `Body normal/Semibold` (SF Pro, installed) and rendered fine, while its Secondary variants used `SF Pro/Body Emphasized` (**SF Pro Text**, a different and uninstalled family) and came out as empty boxes. Repair on the instance by overriding `textStyleId` to the current style, and report the component as needing a fix at source — mixed text styles across variants of one component is a design system bug, not something to paper over on every screen.
