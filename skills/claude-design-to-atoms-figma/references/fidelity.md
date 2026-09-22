@@ -272,6 +272,12 @@ Real example: `new_Button`'s Primary variants used `Body normal/Semibold` (SF Pr
 
 **Component label sets are closed.** When a component carries its label in a *variant* rather than a text property (a status badge with `Type=Passed|Failed|Queued|…`), only those exact statuses can be expressed. If the design needs a status the system does not ship — "Healed", say — do not force the nearest wrong variant. Keep it hand-built, match it to the system's tokens, and report the gap.
 
+**Overriding a brand colour means overriding every property that used it.** A component's brand colour usually appears in more than one place — most often a fill *and* a same-coloured stroke, sometimes a nested icon or label fill. Change only the fill and the leftover stroke becomes a visible halo the moment the new colour differs in lightness.
+
+Real example: `new_Button`'s Primary carried a `#009967` fill **and** a `#009967` 1px stroke. Against the green fill the stroke was invisible; after overriding the fill to a dark navy it read as an unwanted outline. A filled primary button has no border — remove the stroke rather than recolouring it. Secondary keeps its hairline, but on the neutral border token at 0.5px.
+
+After any brand override, re-read the instance and check `fills`, `strokes` and every descendant fill for the old colour.
+
 **The project's current brand token wins over a component's baked-in colour.** When the team says "use X everywhere", apply it to instance overrides too, not just to the frames you build yourself.
 
 ## 14. Check font availability before trusting a text style
