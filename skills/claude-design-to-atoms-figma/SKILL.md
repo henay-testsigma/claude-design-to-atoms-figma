@@ -192,7 +192,8 @@ It checks, automatically, every class of defect that otherwise comes back as rev
 | `emoji-in-text` / `glyph-used-as-icon` | high | icons faked with text |
 | `icon-placeholder` | high | an icon left as a plain frame |
 | `zero-size-text` | high | text collapsed by a sizing mistake |
-| `missing-font-invisible-text` | high | a label that paints nothing because its font is not installed (common inside stale library components) |
+| `missing-font-invisible-text` | high | a label inside an instance that may paint nothing because its font is not installed |
+| `missing-font-substituted` | medium | text rendering in a fallback typeface because the system's font is not installed locally — report it, it is an environment gap, not a build error |
 | `icon-below-minimum` | medium | icons under 16px |
 | `inner-frame-clips` | medium | a frame cropping child shadows |
 | `labels-not-on-one-baseline` | medium | a decoration shifting its own label |
