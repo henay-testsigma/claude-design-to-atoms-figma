@@ -19,7 +19,7 @@ The problem it solves: pasting a generated design into Figma gives you a pile of
 ### As a skill (simplest)
 
 ```bash
-git clone https://github.com/henaylakhwani-design/claude-design-to-atoms-figma.git
+git clone https://github.com/henay-testsigma/claude-design-to-atoms-figma.git
 cp -R claude-design-to-atoms-figma/skills/claude-design-to-atoms-figma ~/.claude/skills/
 ```
 
@@ -28,7 +28,7 @@ Restart Claude Code, then run `/claude-design-to-atoms-figma`.
 ### As a plugin (gets updates)
 
 ```
-/plugin marketplace add henaylakhwani-design/claude-design-to-atoms-figma
+/plugin marketplace add henay-testsigma/claude-design-to-atoms-figma
 /plugin install claude-design-to-atoms-figma@henay-design-skills
 ```
 
