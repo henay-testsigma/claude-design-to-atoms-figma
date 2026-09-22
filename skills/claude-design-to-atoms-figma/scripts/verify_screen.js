@@ -34,10 +34,9 @@ for (const n of root.findAll(() => true)) {
   // --- tokenisation ------------------------------------------------------
   if ("fills" in n && Array.isArray(n.fills)) {
     for (const f of n.fills) {
-      if (f.visible === false) continue;
+      if (f.visible === false || inInst) continue;   // instance internals are the library's
       checked++;
       if (n.fillStyleId && n.fillStyleId !== figma.mixed) { tokenized++; continue; }
-      if (inInst) continue;
       // A layout container with an unstyled opaque fill is almost always the
       // default white that createAutoLayout/createFrame applies.
       if (n.type === "FRAME" && "layoutMode" in n && n.layoutMode !== "NONE") {
@@ -50,20 +49,20 @@ for (const n of root.findAll(() => true)) {
   }
   if ("strokes" in n && Array.isArray(n.strokes)) {
     for (const s of n.strokes) {
-      if (s.visible === false) continue;
+      if (s.visible === false || inInst) continue;
       checked++;
       if (n.strokeStyleId && n.strokeStyleId !== figma.mixed) tokenized++;
       else if (!inInst) add("untokenised-stroke", "high", n, "stroke not bound to a style");
     }
   }
-  if ("effects" in n && Array.isArray(n.effects) && n.effects.length) {
+  if ("effects" in n && Array.isArray(n.effects) && n.effects.length && !inInst) {
     checked++;
     if (n.effectStyleId) tokenized++;
     else if (!inInst) add("untokenised-effect", "medium", n, "effect not bound to a style");
   }
 
   // --- text --------------------------------------------------------------
-  if (n.type === "TEXT") {
+  if (n.type === "TEXT" && !inInst) {
     checked++;
     if (n.textStyleId && n.textStyleId !== figma.mixed) tokenized++;
     else if (!inInst) add("untokenised-text", "high", n,
@@ -101,7 +100,9 @@ for (const n of root.findAll(() => true)) {
   }
 
   // --- overflow ----------------------------------------------------------
-  if ("layoutMode" in n && n.layoutMode === "HORIZONTAL" && box(n)) {
+  // Skip instance internals: a 1px overlap inside a library component is the
+  // library's business and cannot be fixed from the consuming file.
+  if (!inInst && "layoutMode" in n && n.layoutMode === "HORIZONTAL" && box(n)) {
     const pb = box(n);
     const innerR = pb.x + n.width - (n.paddingRight || 0);
     const innerL = pb.x + (n.paddingLeft || 0);
