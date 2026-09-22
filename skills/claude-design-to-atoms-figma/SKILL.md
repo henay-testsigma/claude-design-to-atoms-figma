@@ -178,6 +178,28 @@ Load `figma-use` and `figma-generate-design` now. Then:
 4. **Images.** `use_figma` cannot fetch URLs. If the design has images, run `generate_figma_design` against the **same fileKey** in parallel with step 3, then copy `imageHash` values from the capture's image fills onto your frames and delete the capture. Embedded data-URI images still need this path.
 5. **Flow connectors.** Design files have no FigJam connectors. Draw flow arrows as thin vector/line + label text grouped in a `Flow` frame behind the screens, or add a `## Flow` text block listing transitions. Ask which the user prefers if the flow has more than ~8 edges.
 
+### Phase 6b — Scaling to many screens
+
+Building each state from scratch is the expensive mistake. One verified base screen took hours; the remaining seventeen took **22 minutes and ~3.8k tokens each** using this loop:
+
+1. **Verify one base screen first.** Get it to `PASS`, with the user's sign-off on chrome, tokens and components. Everything downstream inherits those decisions.
+2. **Clone, don't rebuild.** `base.clone()` keeps every style binding, component instance and auto-layout rule. Lay the clones out in flow rows and name them `NN <Intent>` in one call.
+3. **Get each state's content by diffing the capture, not by reading screenshots.** Compare a state's `computed.json` text against the base's — what is left is exactly what changed, with coordinates:
+
+   ```python
+   base = set(e["text"].strip() for e in els("bundled-page") if e.get("text"))
+   new  = [(e["text"], e["x"], e["y"]) for e in els(state) if e.get("text")
+           and e["text"].strip() not in base]
+   ```
+
+   This is far cheaper than reading images and gives exact strings — no transcription errors.
+4. **Read a cropped image only when layout is unclear.** Crop to the changed region and downscale to ~600px before reading; a full-page 2x PNG is mostly wasted tokens.
+5. **Replace only the delta.** For a tab change, keep the header and footer and swap the body between them. For a modal, add a scrim plus a panel over the untouched base.
+6. **Batch structurally similar screens** into one `use_figma` call with a shared builder function (two field-list tabs, several state cards).
+7. **Verify every screen** with `verify_screen.js` before showing the user anything.
+
+A state whose capture yields **no new text** is visually identical to the base — represent it as a control state (pressed/active) and say so, rather than inventing content.
+
 ### Phase 7 — Validate
 
 **Run `scripts/verify_screen.js` through `use_figma` on every screen, and fix everything it reports, BEFORE showing the user anything.** Set `ROOT_ID` to the screen frame. It returns a defect list plus `PASS` (true when there are no high-severity defects). A screen is not done until `PASS` is true.
@@ -193,6 +215,7 @@ It checks, automatically, every class of defect that otherwise comes back as rev
 | `icon-placeholder` | high | an icon left as a plain frame |
 | `zero-size-text` | high | text collapsed by a sizing mistake |
 | `missing-font-invisible-text` | high | a label inside an instance that may paint nothing because its font is not installed |
+| `content-clipped` | high | content pushed below a clipping frame's bottom (usually after a container was resized) |
 | `modal-without-close` | high | a drawer or modal with no dismiss control |
 | `frame-taller-than-content` | medium | dead canvas below the content; size to content, or to the viewport for a modal |
 | `missing-font-substituted` | medium | text rendering in a fallback typeface because the system's font is not installed locally — report it, it is an environment gap, not a build error |

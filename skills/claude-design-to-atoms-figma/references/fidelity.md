@@ -272,6 +272,10 @@ Use what fits, hand-build the rest, and **tell the user which components you use
 
 **Every drawer and modal needs its dismiss control.** A close affordance is part of the design, not chrome to be skipped — a drawer without one reads as broken to a developer. `verify_screen.js` flags `modal-without-close`.
 
+**Resizing a container does not resize its fixed-height children.** Shrink a modal from 1920 to 835 and any child with a fixed height stays put — anything below the new bottom edge is silently swallowed by `clipsContent`. Nothing errors and the layer tree looks correct; the content is simply gone from the canvas.
+
+Make the inner structure flex before changing a container's height: the body `FILL`s the panel, columns `FILL` the body, and the large media block `FILL`s the column so it shrinks while captions and footers stay visible. Then assert it: compare every descendant's bottom against the clipping frame's bottom. `verify_screen.js` flags `content-clipped`.
+
 **Size the frame to the content, not to a fixed canvas.** A 1920px frame holding 800px of content leaves dead space that makes the file hard to read and misleads the developer about the intended height. Size a page frame to its content, and a modal or overlay to the **viewport** — a centred modal never scrolls, so it is viewport height minus its margins (about 835px at a 900px viewport). `verify_screen.js` flags `frame-taller-than-content`.
 
 **Snapshot before you mutate.** Removing an instance invalidates every node inside it, so a live `findAll` traversal that swaps instances will throw `The node with id "I…;…" does not exist` partway through. Collect the target ids first, then loop over the snapshot and re-fetch each node by id.

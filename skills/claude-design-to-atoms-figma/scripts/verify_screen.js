@@ -160,6 +160,26 @@ for (const rowNode of root.findAll((n) =>
   }
 }
 
+// --- content hidden by a clipping parent ------------------------------------
+// Resizing a container does not resize fixed-height children, so content can
+// silently fall outside a clipping frame. Invisible in the layer tree.
+for (const clipper of root.findAll((n) => n.type === "FRAME" && n.clipsContent)) {
+  const cb = clipper.absoluteBoundingBox;
+  if (!cb) continue;
+  for (const child of clipper.findAll(() => true)) {
+    if (child.visible === false) continue;
+    const b = child.absoluteBoundingBox;
+    if (!b) continue;
+    const past = (b.y + b.height) - (cb.y + clipper.height);
+    if (past > 1) {
+      add("content-clipped", "high", child,
+          Math.round(past) + "px below the bottom of \"" + clipper.name +
+          "\", which clips - it is invisible on canvas");
+      break;                       // one report per clipping frame is enough
+    }
+  }
+}
+
 // --- dismissible surfaces need a dismiss control ----------------------------
 for (const surf of root.findAll((n) => n.name && (n.name.indexOf("Drawer / ") === 0 ||
     n.name.indexOf("Modal") === 0 || n.name === "Compare overlay" || n.name === "Agent panel"))) {
