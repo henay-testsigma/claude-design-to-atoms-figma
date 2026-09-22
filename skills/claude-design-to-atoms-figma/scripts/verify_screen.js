@@ -80,6 +80,17 @@ for (const n of root.findAll(() => true)) {
     }
   }
 
+  // A missing font renders text INVISIBLE with no error anywhere. This fires
+  // inside instances too: a library component can be wired to a legacy style
+  // whose font is not installed, and the label silently disappears.
+  if (n.type === "TEXT" && n.hasMissingFont) {
+    const fam = n.fontName && n.fontName !== figma.mixed
+      ? n.fontName.family + " " + n.fontName.style : "MIXED";
+    add("missing-font-invisible-text", "high", n,
+        "\"" + (n.characters || "").slice(0, 20) + "\" uses " + fam +
+        " which is not installed - it will not render");
+  }
+
   // --- icons -------------------------------------------------------------
   if (isIcon(n) && (n.width < MIN_ICON || n.height < MIN_ICON)) {
     add("icon-below-minimum", "medium", n,

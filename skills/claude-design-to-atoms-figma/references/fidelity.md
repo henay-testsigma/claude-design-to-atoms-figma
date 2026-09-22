@@ -266,6 +266,10 @@ Component instances beat hand-built frames for dev handoff: they stay linked, th
 
 Use what fits, hand-build the rest, and **tell the user which components you used and which you rejected and why** — a stale component is a design system finding worth surfacing.
 
+**A component can silently render nothing.** The most dangerous library defect is a component wired to a legacy text style whose font is not installed: the TEXT node exists, holds the right characters, reports `visible: true` and `opacity: 1`, and paints *nothing*. Detect it with `node.hasMissingFont`, never by reading the node tree.
+
+Real example: `new_Button`'s Primary variants used `Body normal/Semibold` (SF Pro, installed) and rendered fine, while its Secondary variants used `SF Pro/Body Emphasized` (**SF Pro Text**, a different and uninstalled family) and came out as empty boxes. Repair on the instance by overriding `textStyleId` to the current style, and report the component as needing a fix at source — mixed text styles across variants of one component is a design system bug, not something to paper over on every screen.
+
 **Component label sets are closed.** When a component carries its label in a *variant* rather than a text property (a status badge with `Type=Passed|Failed|Queued|…`), only those exact statuses can be expressed. If the design needs a status the system does not ship — "Healed", say — do not force the nearest wrong variant. Keep it hand-built, match it to the system's tokens, and report the gap.
 
 **The project's current brand token wins over a component's baked-in colour.** When the team says "use X everywhere", apply it to instance overrides too, not just to the frames you build yourself.
